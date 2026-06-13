@@ -81,25 +81,34 @@ h_usb  = 34;   // USB / SD bank
 h_tool = 56;   // deep tool / pen wells
 
 // ---- Layout anchors (origin = front-left-bottom; +X right, +Y back, +Z up) --
-// Left caddy: x[6..122].  Front->back rows share these blocks.
-cad_x0 = 6;   cad_x1 = 122;
+// The caddy block and its wells share ONE source of truth (these extents), so
+// nothing can drift off-centre: the blocks in body() are built from the same
+// vars, and every well row is CENTRED as a group inside its band.
+cad_x0 = 6;   cad_x1 = 122;   cad_cx = (cad_x0 + cad_x1)/2;     // x band, centre 64
 
-// Tool/pen row centres (cumulative, left->right: 3 tools then 2 pens) @ y_back
-y_back = 105;
-m_in   = 4;   gw = 5;                       // edge inset, gap between wells
-t1 = cad_x0 + m_in + tool_o/2;              // 20
-t2 = t1 + tool_o + gw;                      // 45
-t3 = t2 + tool_o + gw;                      // 70
-p1 = t3 + tool_o/2 + gw + pen_o/2;          // 91.5
-p2 = p1 + pen_o + gw;                       // 109.5
+usb_y0  = 62;  usb_y1  = 92;                                    // USB/SD band
+tool_y0 = 94;  tool_y1 = 128;                                   // tool/pen band
 
-// USB/SD row centres @ y_front
-y_front = 71;
-gu = 6;
-u1 = cad_x0 + m_in + usb_ox/2;              // 20.8
-u2 = u1 + usb_ox + gu;                      // 48.4
-u3 = u2 + usb_ox + gu;                      // 76.0
-sd_cx = u3 + usb_ox/2 + gu + sd_ox/2;       // 105.3
+// Tool/pen row: 3 tools + 2 pens, centred as a group in the band (left->right)
+y_back  = (tool_y0 + tool_y1)/2;            // 111 -- band mid-depth (centred)
+gw      = 5;                                // gap between wells
+tp_span = 3*tool_o + 2*pen_o + 4*gw;        // group width = 106
+tp_x0   = cad_cx - tp_span/2;               // left edge of first well (centred)
+t1 = tp_x0 + tool_o/2;
+t2 = t1 + tool_o + gw;
+t3 = t2 + tool_o + gw;
+p1 = t3 + tool_o/2 + gw + pen_o/2;
+p2 = p1 + pen_o + gw;
+
+// USB/SD row: 3 USB + 1 SD, centred as a group in the band
+y_front = (usb_y0 + usb_y1)/2;              // 77 -- band mid-depth (centred)
+gu      = 6;                                // gap between wells
+us_span = 3*usb_ox + sd_ox + 3*gu;          // group width
+us_x0   = cad_cx - us_span/2;               // left edge of first well (centred)
+u1 = us_x0 + usb_ox/2;
+u2 = u1 + usb_ox + gu;
+u3 = u2 + usb_ox + gu;
+sd_cx = u3 + usb_ox/2 + gu + sd_ox/2;
 
 // MagSafe stand footprint (back-right)
 phone_angle = 50;                            // deg from horizontal (StandBy lean)
@@ -113,6 +122,7 @@ mag_h    = 83;                               // puck centre, mm up the slope fro
 puck_y   = stand_y0 + mag_h * cos(phone_angle);
 puck_z   =            mag_h * sin(phone_angle);
 recess_depth = 6;  recess_ch = 2.0;          // puck pocket depth + 45 deg lead-in
+relief_d = 5.0;                              // camera-plateau clearance pocket depth
 lip_h    = 12;                               // phone-foot catch lip
 
 // Remote tray (front strip)
@@ -168,6 +178,19 @@ module puck_cut() {
     translate([0, 0, recess_ch - 0.01]) cylinder(d = puck_o + 2*recess_ch, h = 8); // overshoot
 }
 
+// Camera-bump relief (local slope frame, origin at the puck, +Y = up-slope).
+// The iPhone 15 Pro's camera plateau (~4.3 mm proud) sits right ABOVE the
+// MagSafe ring, so a flat slope would make the phone rock on the camera bump
+// instead of seating on the puck. This pockets the slope just up-slope of the
+// puck -- in the thick part of the wedge -- so the plateau clears; the phone's
+// top edge also overhangs the wedge apex into free air. Prints support-free
+// (it's a recess into the up-facing slope).
+module camera_relief() {
+    translate([0, 36, -relief_d])
+        linear_extrude(relief_d + 0.1)
+            offset(4) offset(-4) square([stand_w - 4, 26], center = true);   // near full width, up-slope band
+}
+
 module mag_stand() {
     difference() {
         union() {
@@ -188,6 +211,8 @@ module mag_stand() {
         }
         // Puck pocket, normal to the slope face
         translate([puck_x, puck_y, puck_z]) rotate([phone_angle, 0, 0]) puck_cut();
+        // Camera-bump relief, up-slope of the puck (same local frame)
+        translate([puck_x, puck_y, puck_z]) rotate([phone_angle, 0, 0]) camera_relief();
         // (cable conduit is cut in body() so it also passes through the base slab)
     }
 }
@@ -217,8 +242,10 @@ module body() {
             translate([3, 2, 0])  soft_box(190, 148, floor_t, edge, 0.6);
             // Terrace blocks (front -> back, low -> tall)
             translate([4, 3, 0])  soft_box(186, 55, h_tray, edge, top_ch);  // remote tray
-            translate([6, 62, 0]) soft_box(116, 30, h_usb,  edge, top_ch);  // USB / SD bank
-            translate([6, 94, 0]) soft_box(116, 34, h_tool, edge, top_ch);  // tool / pen wells
+            translate([cad_x0, usb_y0, 0])                                  // USB / SD bank
+                soft_box(cad_x1 - cad_x0, usb_y1 - usb_y0, h_usb, edge, top_ch);
+            translate([cad_x0, tool_y0, 0])                                 // tool / pen wells
+                soft_box(cad_x1 - cad_x0, tool_y1 - tool_y0, h_tool, edge, top_ch);
             mag_stand();                                                    // phone stand
         }
 
@@ -233,9 +260,9 @@ module body() {
         // --- USB drives stood upright
         for (cx = [u1, u2, u3]) cut_rect(cx, y_front, usb_ox, usb_oy, usb_depth, h_usb, r = 2);
 
-        // --- SD card slot + a finger scallop at the front to pinch it out
+        // --- SD card slot + a finger scallop reaching from the front face to the slot
         cut_rect(sd_cx, y_front, sd_ox, sd_oy, sd_depth, h_usb, r = 1, ch = 0.6);
-        translate([sd_cx, 62, h_usb]) rotate([90, 0, 0]) cylinder(r = 5, h = 16, center = true);
+        translate([sd_cx, usb_y0, h_usb]) rotate([90, 0, 0]) cylinder(r = 6, h = 2*(y_front - usb_y0) + 4, center = true);
 
         // --- Hidden MagSafe cable conduit (drops down the wedge, out the rear)
         cable_conduit();
@@ -253,14 +280,17 @@ module mocks() {
     translate([puck_x, puck_y, puck_z]) rotate([phone_angle, 0, 0]) {
         color("Silver", 0.7) translate([0, 0, -recess_depth]) cylinder(d = puck_d, h = puck_t);
     }
+    // Phone laid back on the slope, with its rear camera plateau (top-left,
+    // ~4.3 mm proud) modelled so the relief clearance is visible.
     color("Gainsboro", 0.5)
-        translate([puck_x, stand_y0, 0]) rotate([phone_angle, 0, 0])
-            translate([-35, -2, 1]) cube([70, 147, 8]);
+        translate([puck_x, stand_y0, 0]) rotate([phone_angle, 0, 0]) {
+            translate([-35, -2, 1]) cube([70, 147, 8]);             // body, back face at z=1
+            translate([-32, 106, -3.3]) cube([36, 37, 4.5]);        // camera plateau (proud of back)
+        }
 }
 
 // =============================================================================
 // Output
 // =============================================================================
-xray = false;   // debug: ghost the body and show the conduit cutter solid (red)
-if (xray) { %body(); color("red") cable_conduit(); }
-else { body(); if (part == "assembly" && show_items) mocks(); }
+body();
+if (part == "assembly" && show_items) mocks();

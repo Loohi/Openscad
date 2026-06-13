@@ -91,6 +91,35 @@ insert_d  = (material == "PETG") ? 4.2  : 4.0;   // M3 heat-set bore
 
 ## Models
 
+- `Expansion jaw mount/expansion_jaw.scad` — Wedge-driven 2-jaw expansion mount: a
+  parametric recreation + FDM enhancement of the Onshape "Expansion jaw", repurposed
+  as a reusable **slot-mounting system** (e.g. a bathroom ledge slot). Two mirrored
+  jaws form a 10° V-channel; a tapered wedge driven forward (−Y) by a **single
+  countersunk M4** forces the jaws apart (Z) to clamp the slot. That one screw closes
+  the whole force loop (spread + clamp the stack), so there are no separate anchor
+  screws (`screw_head` = "flat" countersink / "socket" counter-bore). A front face plate
+  carries a **vertical dovetail interface** so tool-free accessories drop in from the
+  top; the dovetail corners are **chamfered (not rounded)** — straight locking flanks,
+  45° root relief, self-aligning lead-in (`dt_cham`/`dt_lead`). Grip teeth are OFF by
+  default (a flat face grips a hard slot better; `grip_teeth=true` only for soft slots).
+  PETG. `part` selects
+  `"assembly"` / `"top_jaw"` / `"bottom_jaw"` / `"jaws"` / `"wedge"` / `"face_plate"` /
+  `"accessory"` / `"interface_test"`. Frame: X=width, −Y=front/room, +Y=into slot,
+  Z=expansion/height (jaws mirror across Z=0).
+  - **Mounting standard = the dovetail.** Keep `dt_pitch/dt_mouth/dt_base/dt_depth`
+    identical between the mount (female slots, full-height) and every accessory (male
+    tenons, minus `fit_slip`). New accessories `include` this file and call
+    `accessory_base()`. See README §4.
+  - **Verified geometry:** wedge faces are exactly coincident with the jaw faces at the
+    nominal position (matched 10° inclines) — so the wedge is shrunk by `fit_slip` to
+    slide. Spread = pure function of wedge Y-travel.
+  - **Slot is fully parametric:** `slot_gap` / `Jaws_depth` default to the original
+    41×25 mm envelope; measure the real slot and override. README §7 lists what's left
+    (real slot dims; optional plate-back locating ribs / TPU grip pad) to settle when
+    building the first concrete accessory.
+  - **Orientation:** parts kept in the assembly frame (not pre-rotated); per-part print
+    orientation is documented in README §6, not baked into the model.
+
 - `aqi_enclosure.scad` — Air quality sensor enclosure for an ESP32 DevKit + PMS5003 +
   SCD30, wired with jumper cables (no PCB). Two printed parts selected via the `part`
   variable (`"base"` / `"lid"` / `"assembly"`). Component footprints and fit tolerances
@@ -119,13 +148,35 @@ insert_d  = (material == "PETG") ? 4.2  : 4.0;   // M3 heat-set bore
     USB/SD bank, then the deep tool/pen wells at back-left; the MagSafe wedge
     rises at back-right. Tall items at the back keep the sightline calm. Item
     sizes and clearances are top-level vars; row positions derive cumulatively.
+  - **Wells are centred in their bands (single source of truth):** the caddy
+    block and its well rows both derive from the same `cad_x0/cad_x1`,
+    `usb_y0/usb_y1`, `tool_y0/tool_y1` extents. Each row is centred as a *group*
+    (`us_x0`/`tp_x0 = cad_cx - span/2`; `y_front`/`y_back` = band mid-depth) so
+    openings can't drift off-centre. See `[[center-wells-in-their-block]]`.
   - **Orientation matters:** modelled already in print pose — prints FLAT on its
     base, every well vertical ⇒ support-free. The ONE managed overhang is the
     puck recess (bored into the 50° face): a 2 mm 45° chamfered lead-in + shallow
     depth lets it bridge; lowering `phone_angle` rotates the rim toward vertical.
+  - **Camera-bump relief (`camera_relief()`):** the iPhone 15 Pro's camera
+    plateau (~4.3 mm proud) sits right ABOVE the MagSafe ring, so a flat slope
+    would make the phone rock on the bump instead of seating on the puck.
+    `camera_relief()` pockets the slope just up-slope of the puck (`relief_d`
+    deep, in the thick part of the wedge) so the plateau clears; the phone's top
+    edge also cantilevers past the apex into free air. The pocket intentionally
+    opens the puck pocket's up-slope rim (reads as a recessed panel) — on the
+    real phone the plateau begins *before* the ring ends, so retaining the full
+    rim and clearing the bump can't both happen; the puck is held by the lower
+    ~290° of rim + gravity. Phone seats on the lower slope + puck face.
   - **MagSafe wedge depth is load-bearing geometry:** `stand_d` must keep the
     50° face long enough to fully contain the puck pocket (centre is ~83 mm
     up-slope) — too shallow and the recess clips off the back as a crescent.
+  - **Hidden cable routing (`cable_conduit()`):** the puck cable drops off the
+    pocket's lower rim (behind the phone, so the entry never shows), down a
+    vertical channel inside the wedge, then runs rearward in a covered,
+    open-bottom channel and exits the REAR face at desk level so it falls
+    invisibly behind the organizer — nothing visible from the front. Conduit is
+    cut in `body()` (not `mag_stand()`) so it also passes through the base slab.
+    Seat the puck with its cable pointing down-slope so it feeds into the drop.
   - **Note:** the wedge is currently a solid triangle (light at 15% infill but
     bulky); the reclined phone cantilevers ~50 mm behind the back edge, so leave
     clearance from a wall. Visual language: single `edge` radius + chamfered
@@ -134,6 +185,42 @@ insert_d  = (material == "PETG") ? 4.2  : 4.0;   // M3 heat-set bore
 ## Toolchain
 
 - OpenSCAD `2021.01` is installed at `/usr/bin/openscad`. This is the *stable* release: it does **not** include the newer `2019.05+` development features unless they shipped in 2021.01. Notably it lacks `Customizer`-only syntax extensions and some `list comprehension` niceties from nightly builds — prefer language features documented for 2021.01.
+
+## Choosing model + effort (Claude Pro budget)
+
+This is a Claude Pro account: usage is a rolling budget (resets on a few-hour session window, plus a weekly cap), and Opus drains it several times faster than Sonnet. The goal is **high-quality output without burning the session** — so spend the expensive reasoning only where it actually changes the result. Switch models with `/model`; `/fast` is Opus with faster *output* (same model, **not** cheaper — it does not save budget).
+
+**The governing rule for this repo — feedback-loop cost, not task size:**
+
+- If a wrong call is **caught in seconds by a render** (`openscad -o /dev/null`, a preview PNG), it's cheap to be wrong → a low-effort Sonnet pass is fine; let the render loop be the safety net.
+- If a wrong call only surfaces after a **multi-hour print + wasted filament** — print orientation, overhang/support strategy, layer-grain load direction, fit tolerances, where the part splits/seams — it's irreversible → pay **Opus + high effort up front**. This is exactly the "practicality and printability win, but deliberately" judgment from the design philosophy.
+
+**Use Opus (high / max effort) for the judgment-heavy half:**
+
+- Starting a new `.scad` from a description: print pose, seam placement, visual language, proportion — the elite-industrial-designer calls.
+- Reworking form/architecture or cross-cutting reflow where changing one named var ripples through many derived dims.
+- Overhang/bridging redesign, support elimination, tolerance/fit debugging after a print failed, and non-obvious non-manifold / CGAL diagnosis.
+- Resolving a beauty-vs-printability conflict (the compromise must be deliberate and noted, not accidental).
+
+**Use Sonnet (low / medium effort) for the mechanical half:**
+
+- Tweaking existing parameter values, renaming vars, raising `$fn`, swapping `-D` overrides.
+- Edits with a clear spec ("add a 2 mm 45° chamfer to this rim like the others").
+- Running renders/exports, reading stderr, fixing syntax, formatting.
+- Comment / README / CLAUDE.md / model-registry edits, and all the exploration/searching/reading before a design step.
+
+**Effort sizing (the second dial, independent of model):**
+
+- *Minimal / none* — single-value tweaks, running a command, doc edits.
+- *Medium* — multi-part edits that must stay mutually consistent, geometry you can confirm by render.
+- *High / max* — new-model architecture, cross-cutting reflow, and any decision a render can't verify (orientation, supports, grain, tolerances). Don't crank effort on something a render already proves.
+
+**Budget tactics:**
+
+- **Default to Sonnet.** Do the reading, searching, and trivial edits there; switch to Opus only for the one decisive design or debugging step, then switch back — don't leave Opus on for the mechanical follow-through.
+- **Batch** trivial changes into one pass instead of many round-trips.
+- **Verify with renders, not reasoning.** `openscad -o /dev/null` is free and objective; lean on it instead of spending model effort to "argue" geometry is manifold.
+- Reach for `/fast` when you want Opus quality without the wait — for speed, not to save budget.
 
 ## Common commands
 
