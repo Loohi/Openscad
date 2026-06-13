@@ -1,0 +1,14 @@
+# OpenSCAD / slicer output artifacts
+*.stl
+*.3mf
+*.off
+*.amf
+*.png
+*.gcode
+*.dxf
+*.svg
+
+# Editor / OS cruft
+*.bak
+*.swp
+.DS_Store
