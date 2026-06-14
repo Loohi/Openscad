@@ -101,11 +101,18 @@ tooth_margin = 3.0;          // inset from the side & front edges
 // (spreads the jaws) AND sandwiches the face plate against the jaw fronts, so no
 // separate anchor screws are needed: ONE fastener does everything.
 drive_clear = 4.4;          // M4 free-clearance shaft
-drive_pilot = 3.3;          // M4 self-tap pilot into the wedge (set-and-forget)
-screw_head  = "flat";       // "flat" = 90-deg countersunk (flush) | "socket" = counter-bore
-csk_d       = 8.4;          // flat-head 90-deg countersink rim dia (M4 head ~7.5-8)
+drive_pilot = 3.5;          // M4 self-tap pilot into the wedge (set-and-forget). 3.5
+                            // (not 3.3): PETG bores print ~0.1-0.15mm undersize and a
+                            // tighter pilot is hard to drive / risks splitting the wedge.
+screw_head  = "socket";     // "socket" = counter-bore for allen-key socket-cap screw | "flat" = 90-deg countersunk
+csk_d       = 9.4;          // flat-head 90-deg countersink rim dia. Depth is DERIVED
+                            // = (csk_d-drive_clear)/2 = 2.5mm, enough to fully bury a
+                            // DIN 965 M4 head (~2.5mm tall). Use a 90-deg MACHINE screw,
+                            // not an 82-deg wood screw, or the head sits proud.
 head_d      = 7.4;          // socket-head dia + clearance (counter-bore option)
-head_h      = 4.0;          // socket counter-bore depth
+head_h      = 4.5;          // socket counter-bore depth. M4 cap head is 4.0mm tall (max),
+                            // so bore 0.5mm deeper -> head recesses sub-flush even with
+                            // elephant's-foot/first-layer squish eating the bore bottom.
 
 // =============================================================================
 //  DOVETAIL MOUNTING INTERFACE  (the reusable standard — see README)
@@ -399,4 +406,7 @@ else if (part == "wedge")       wedge();
 else if (part == "face_plate")  face_plate();
 else if (part == "accessory")   accessory_base();
 else if (part == "interface_test") { face_plate(); accessory_base(); }
+else if (part == "none")        { /* no-op: lets accessory files include this
+                                     file for the dovetail standard + modules
+                                     without rendering the jaw assembly */ }
 else assembly();
